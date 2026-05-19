@@ -4,6 +4,8 @@ import express, { Request, Response, NextFunction } from 'express';
 
 import apiRouter from './routes';
 
+console.log('🔥 SERVER BUILD CHECK - TIMESTAMP:', Date.now());
+
 const app = express();
 
 // 1. CORS - ПЕРВЫМ!
