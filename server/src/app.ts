@@ -4,14 +4,17 @@ import express, { Request, Response, NextFunction } from 'express';
 
 import apiRouter from './routes';
 
+console.log('🧪 CHECK ENV FRONTEND_URL:', process.env.FRONTEND_URL);
 console.log('🔥 SERVER BUILD CHECK - TIMESTAMP:', Date.now());
 
 const app = express();
 
 // 1. CORS - ПЕРВЫМ!
 app.use((req, res, next) => {
-  // Получаем адрес фронтенда из переменных
-  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+  // Жестко задаем адрес, если переменная окружения пуста
+  const allowedOrigin = process.env.FRONTEND_URL || 'https://online-school-1-zj77.onrender.com';
+
+  console.log('🛡️ CORS USING ORIGIN:', allowedOrigin);
 
   res.header('Access-Control-Allow-Origin', allowedOrigin);
   res.header('Access-Control-Allow-Credentials', 'true');
