@@ -32,6 +32,19 @@ app.use((req, res, next) => {
 });
 console.log('✅ CORS ENABLED FOR:', process.env.FRONTEND_URL);
 
+// Handle OPTIONS requests for CORS preflight
+app.options('*', (req, res) => {
+  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+  res.header('Access-Control-Allow-Origin', allowedOrigin);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+  );
+  res.sendStatus(200);
+});
+
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.path}`);
   next();
