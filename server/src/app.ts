@@ -20,6 +20,11 @@ app.use(
 );
 console.log('CORS ALLOWED ORIGIN:', process.env.FRONTEND_URL);
 
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  next();
+});
+
 // 2) Парсинг тела — до роутов
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
