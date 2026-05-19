@@ -3,30 +3,30 @@ import express, { Request, Response, NextFunction } from 'express';
 // import rateLimit from 'express-rate-limit';
 
 import apiRouter from './routes';
+import { applyCorsHeaders, getAllowedOrigins, handlePreflight } from './lib/cors';
 
-console.log('🧪 CHECK ENV FRONTEND_URL:', process.env.FRONTEND_URL);
+console.log('🧪 CHECK ENV FRONTEND_URL:', JSON.stringify(process.env.FRONTEND_URL));
+console.log('🧪 ALLOWED ORIGINS:', getAllowedOrigins());
 console.log('🔥 SERVER BUILD CHECK - TIMESTAMP:', Date.now());
 
 const app = express();
 
-// 1. CORS - ПЕРВЫМ!
+// 0. OPTIONS на любой путь — до всего остального
+app.options('*', (req, res) => {
+  handlePreflight(req, res);
+});
+
+// 1. CORS — ПЕРВЫМ (каждый запрос)
 app.use((req, res, next) => {
-  // Жестко задаем адрес, если переменная окружения пуста
-  const allowedOrigin = process.env.FRONTEND_URL || 'https://online-school-1-zj77.onrender.com';
+  const origin = applyCorsHeaders(req, res);
 
-  console.log('🛡️ CORS USING ORIGIN:', allowedOrigin);
-
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-
-  if (req.method === 'OPTIONS') {
-    console.log('✅ OPTIONS handled for', req.path); // Этот лог поможет нам убедиться, что код работает
-    return res.sendStatus(200);
+  if (handlePreflight(req, res)) {
+    return;
   }
 
-  console.log(`📥 ${req.method} ${req.path}`);
+  console.log(
+    `📥 ${req.method} ${req.path} | Origin: ${req.headers.origin ?? 'none'} | CORS: ${origin}`,
+  );
   next();
 });
 
@@ -34,16 +34,32 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Health (для Render / ручной проверки CORS)
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, ts: Date.now() });
+});
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, ts: Date.now() });
+});
+
 // 3. Роуты
 app.use('/api', apiRouter);
 
+// 404 с CORS
+app.use((_req, res) => {
+  res.status(404).json({ message: 'Not found' });
+});
+
 // 4. Error handler с CORS
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  console.error('❌ Error:', err.message);
-  res.status(err.status || 500).json({ message: err.message });
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  applyCorsHeaders(req, res);
+  const message = err instanceof Error ? err.message : 'Internal server error';
+  const status =
+    err && typeof err === 'object' && 'status' in err && typeof (err as { status: number }).status === 'number'
+      ? (err as { status: number }).status
+      : 500;
+  console.error('❌ Error:', message);
+  res.status(status).json({ message });
 });
 
 export default app;

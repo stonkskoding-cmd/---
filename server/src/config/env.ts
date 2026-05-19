@@ -8,9 +8,11 @@ export const env = {
   DATABASE_URL: process.env.DATABASE_URL || '',
   DIRECT_URL: process.env.DIRECT_URL || '',
   JWT_SECRET: process.env.JWT_SECRET || '',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
-  BACKEND_URL: process.env.BACKEND_URL || '',
-  CLIENT_URL: process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000',
+  FRONTEND_URL: (process.env.FRONTEND_URL || 'http://localhost:3000').trim().replace(/\r/g, ''),
+  BACKEND_URL: (process.env.BACKEND_URL || '').trim().replace(/\r/g, ''),
+  CLIENT_URL: (process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000')
+    .trim()
+    .replace(/\r/g, ''),
   YOOKASSA_SHOP_ID: process.env.YOOKASSA_SHOP_ID || '',
   YOOKASSA_SECRET_KEY: process.env.YOOKASSA_SECRET_KEY || '',
   R2_ENDPOINT: process.env.R2_ENDPOINT || '',

@@ -4,7 +4,8 @@ import express from 'express';
 import { Server } from 'socket.io';
 import app from './app';
 import { connectDB } from './config/db';
-import { corsAllowedOrigins, env } from './config/env';
+import { env } from './config/env';
+import { getAllowedOrigins } from './lib/cors';
 import jwt from 'jsonwebtoken';
 import { prisma } from './lib/prisma';
 
@@ -14,11 +15,14 @@ app.use('/uploads', express.static(uploadsPath));
 
 const server = http.createServer(app);
 
-/** Socket.IO принимает string | string[]; единый массив — без union string | string[] */
-const socketCorsOrigins: string[] =
-  process.env.NODE_ENV === 'production'
-    ? [process.env.FRONTEND_URL || 'http://localhost:3000']
-    : corsAllowedOrigins;
+/** Лог до Express — если видим [RAW] но нет 📥, проблема внутри Express */
+server.on('request', (req) => {
+  console.log(
+    `[RAW] ${req.method} ${req.url} | Origin: ${req.headers.origin ?? 'none'}`,
+  );
+});
+
+const socketCorsOrigins: string[] = getAllowedOrigins();
 
 // Socket.IO setup
 const io = new Server(server, {
