@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 import app from './app';
 import { connectDB } from './config/db';
 import { env } from './config/env';
-import { getAllowedOrigins } from './lib/cors';
+import { CORS_BUILD_ID, getAllowedOrigins, handleHttpPreflight } from './lib/cors';
 import jwt from 'jsonwebtoken';
 import { prisma } from './lib/prisma';
 
@@ -13,14 +13,20 @@ import { prisma } from './lib/prisma';
 const uploadsPath = path.join(__dirname, '../uploads');
 app.use('/uploads', express.static(uploadsPath));
 
-const server = http.createServer(app);
-
-/** Лог до Express — если видим [RAW] но нет 📥, проблема внутри Express */
-server.on('request', (req) => {
+/** OPTIONS перехватываем ДО Express — иначе apiRouter может отдать 404 */
+const server = http.createServer((req, res) => {
   console.log(
     `[RAW] ${req.method} ${req.url} | Origin: ${req.headers.origin ?? 'none'}`,
   );
+
+  if (handleHttpPreflight(req, res)) {
+    return;
+  }
+
+  app(req, res);
 });
+
+console.log('🚀 INDEX LOADED | CORS_BUILD_ID:', CORS_BUILD_ID);
 
 const socketCorsOrigins: string[] = getAllowedOrigins();
 

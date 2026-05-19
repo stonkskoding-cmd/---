@@ -4,44 +4,33 @@ import cookieParser from 'cookie-parser';
 // import rateLimit from 'express-rate-limit';
 
 import apiRouter from './routes';
+import {
+  CORS_BUILD_ID,
+  applyCorsHeaders,
+  corsMiddleware,
+  getAllowedOrigins,
+  handlePreflight,
+} from './lib/cors';
 
-const ALLOWED_ORIGINS = [
-  'https://online-school-1-zj77.onrender.com',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim().replace(/\r/g, '')] : []),
-];
-
-function setCorsHeaders(req: Request, res: Response): void {
-  const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-}
+console.log('🚀 APP LOADED | CORS_BUILD_ID:', CORS_BUILD_ID);
+console.log('🧪 ALLOWED ORIGINS:', getAllowedOrigins());
 
 const app = express();
 
 // =========================================================
-// 🛡️ ПУЛЕНЕПРОБИВАЕМЫЙ CORS (Ставим САМЫМ ПЕРВЫМ!)
+// 🛡️ CORS — САМЫМ ПЕРВЫМ (до парсинга и роутов)
 // =========================================================
-app.use((req, res, next) => {
-  console.log(` [REQUEST] ${req.method} ${req.originalUrl}`);
 
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    console.log(`✅ [OPTIONS INTERCEPTED] Отправляю 204 No Content для ${req.originalUrl}`);
-    return res.sendStatus(204);
-  }
-
-  next();
+// Явный перехват OPTIONS для любого пути (до apiRouter)
+app.options(/.*/, (req, res) => {
+  console.log('🔥 app.options handler for', req.method, req.originalUrl);
+  handlePreflight(req, res);
 });
 
+app.use(corsMiddleware);
+
 // =========================================================
-// Дальше стандартные настройки
+// Парсинг и роуты
 // =========================================================
 
 app.use(express.json());
@@ -49,10 +38,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, ts: Date.now() });
+  res.json({ ok: true, build: CORS_BUILD_ID, ts: Date.now() });
 });
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, ts: Date.now() });
+  res.json({ ok: true, build: CORS_BUILD_ID, ts: Date.now() });
 });
 
 app.use('/api', apiRouter);
@@ -62,7 +51,7 @@ app.use((_req, res) => {
 });
 
 app.use((err: Error & { status?: number }, req: Request, res: Response, _next: NextFunction) => {
-  setCorsHeaders(req, res);
+  applyCorsHeaders(req, res);
   console.error('❌ Error:', err.message);
   res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
 });
