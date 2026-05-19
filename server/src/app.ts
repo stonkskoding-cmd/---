@@ -1,40 +1,53 @@
 import express, { Request, Response, NextFunction } from 'express';
+import cookieParser from 'cookie-parser';
 // import helmet from 'helmet';
 // import rateLimit from 'express-rate-limit';
 
 import apiRouter from './routes';
-import { applyCorsHeaders, getAllowedOrigins, handlePreflight } from './lib/cors';
 
-console.log('🧪 CHECK ENV FRONTEND_URL:', JSON.stringify(process.env.FRONTEND_URL));
-console.log('🧪 ALLOWED ORIGINS:', getAllowedOrigins());
-console.log('🔥 SERVER BUILD CHECK - TIMESTAMP:', Date.now());
+const ALLOWED_ORIGINS = [
+  'https://online-school-1-zj77.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim().replace(/\r/g, '')] : []),
+];
+
+function setCorsHeaders(req: Request, res: Response): void {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+}
 
 const app = express();
 
-// 0. OPTIONS на любой путь — до всего остального
-app.options('*', (req, res) => {
-  handlePreflight(req, res);
-});
-
-// 1. CORS — ПЕРВЫМ (каждый запрос)
+// =========================================================
+// 🛡️ ПУЛЕНЕПРОБИВАЕМЫЙ CORS (Ставим САМЫМ ПЕРВЫМ!)
+// =========================================================
 app.use((req, res, next) => {
-  const origin = applyCorsHeaders(req, res);
+  console.log(` [REQUEST] ${req.method} ${req.originalUrl}`);
 
-  if (handlePreflight(req, res)) {
-    return;
+  setCorsHeaders(req, res);
+
+  if (req.method === 'OPTIONS') {
+    console.log(`✅ [OPTIONS INTERCEPTED] Отправляю 204 No Content для ${req.originalUrl}`);
+    return res.sendStatus(204);
   }
 
-  console.log(
-    `📥 ${req.method} ${req.path} | Origin: ${req.headers.origin ?? 'none'} | CORS: ${origin}`,
-  );
   next();
 });
 
-// 2. Парсинг
+// =========================================================
+// Дальше стандартные настройки
+// =========================================================
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// Health (для Render / ручной проверки CORS)
 app.get('/health', (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
@@ -42,24 +55,16 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
-// 3. Роуты
 app.use('/api', apiRouter);
 
-// 404 с CORS
 app.use((_req, res) => {
   res.status(404).json({ message: 'Not found' });
 });
 
-// 4. Error handler с CORS
-app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
-  applyCorsHeaders(req, res);
-  const message = err instanceof Error ? err.message : 'Internal server error';
-  const status =
-    err && typeof err === 'object' && 'status' in err && typeof (err as { status: number }).status === 'number'
-      ? (err as { status: number }).status
-      : 500;
-  console.error('❌ Error:', message);
-  res.status(status).json({ message });
+app.use((err: Error & { status?: number }, req: Request, res: Response, _next: NextFunction) => {
+  setCorsHeaders(req, res);
+  console.error('❌ Error:', err.message);
+  res.status(err.status || 500).json({ message: err.message || 'Internal Server Error' });
 });
 
 export default app;
