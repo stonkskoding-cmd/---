@@ -11,14 +11,16 @@ import { errorHandler } from './middleware/error';
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// CORS — первым, до helmet, /api и остальных middleware
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
   }),
 );
+console.log('CORS ALLOWED ORIGIN:', process.env.FRONTEND_URL);
+
+app.use(helmet());
 
 // Rate limiting
 const limiter = rateLimit({
