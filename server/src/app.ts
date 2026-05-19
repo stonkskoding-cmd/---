@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
@@ -6,42 +6,32 @@ import morgan from 'morgan';
 import { env } from './config/env';
 
 import apiRouter from './routes';
-import { errorHandler } from './middleware/error';
 
 const app = express();
 
-// CORS middleware - ОБЯЗАТЕЛЬНО ПЕРВЫМ!
+// CORS - РАЗРЕШАЕМ ВСЕХ (для отладки)
 app.use((req, res, next) => {
-  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
-
-  // Разрешаем запросы с фронтенда
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token',
-  );
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
 
-  // Обработка preflight запросов (OPTIONS)
   if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Max-Age', '86400');
     return res.sendStatus(200);
   }
 
   next();
 });
-console.log('✅ CORS ENABLED FOR:', process.env.FRONTEND_URL);
 
-// Handle OPTIONS requests for CORS preflight
+console.log('✅ CORS: ALLOW ALL (*)');
+
+// Обработка OPTIONS для всех маршрутов
 app.options('*', (req, res) => {
-  const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
-  res.header('Access-Control-Allow-Origin', allowedOrigin);
-  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-  );
+  res.header('Access-Control-Allow-Headers', '*');
   res.sendStatus(200);
 });
 
@@ -50,7 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 2) Парсинг тела — до роутов
+// ВАЖНО: после CORS, до apiRouter
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -61,8 +51,6 @@ if (env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// 3) API: фронт шлёт на {VITE_API_URL}/auth/... где baseURL уже содержит /api
-//    → здесь один префикс /api; внутри apiRouter только /auth, /packages, …
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -70,11 +58,21 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 app.use('/api', apiRouter);
 
-// Health check (вне /api)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.use(errorHandler);
+// Error handler с CORS
+app.use((err: Error & { status?: number; statusCode?: number }, req: Request, res: Response, next: NextFunction) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Credentials', 'true');
+
+  console.error('❌ Error:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    message: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
 
 export default app;
