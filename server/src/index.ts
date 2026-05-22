@@ -111,13 +111,18 @@ io.of('/support').on('connection', (socket) => {
   });
 });
 
-// Start server (Render задаёт PORT через окружение)
-const PORT = parseInt(process.env.PORT || String(env.PORT || 5000), 10);
+// Render передаёт PORT динамически (не хардкодить 10000/5000)
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
-connectDB().then(() => {
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+connectDB()
+  .then(() => {
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
   });
-});
 
 export default io;
