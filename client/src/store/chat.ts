@@ -25,7 +25,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeConversation: null,
   
   initializeSocket: (token) => {
-    const socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    const socket = io(
+      import.meta.env.VITE_SOCKET_URL || 'https://online-school-backend-mqn9.onrender.com',
+      {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket'],

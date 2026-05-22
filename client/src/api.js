@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { isValidAdminToken } from './utils/adminAuth';
 
-/** Жёсткий URL для теста CORS на Render */
-const apiBaseURL = 'https://online-school-1it4.onrender.com/api';
+const apiBaseURL =
+  import.meta.env.VITE_API_URL || 'https://online-school-backend-mqn9.onrender.com/api';
 
 const api = axios.create({
   baseURL: apiBaseURL,

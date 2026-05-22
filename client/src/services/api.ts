@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { User, Package, Purchase, Message, Conversation } from '@/types';
 
-/** Синхронно с client/src/api.js (если store подключат позже) */
-const API_URL = 'https://online-school-1it4.onrender.com/api';
+/** Синхронно с client/src/api.js */
+const API_URL =
+  import.meta.env.VITE_API_URL || 'https://online-school-backend-mqn9.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_URL,
