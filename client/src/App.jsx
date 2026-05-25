@@ -4,9 +4,11 @@ import Dashboard from './pages/Dashboard';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import PrivateAdminRoute from './components/PrivateAdminRoute';
+import ChatButton from './components/chat/ChatButton';
 
 export default function App() {
   return (
+    <>
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/dashboard" element={<Dashboard />} />
@@ -22,5 +24,7 @@ export default function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <ChatButton />
+    </>
   );
 }

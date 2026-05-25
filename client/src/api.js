@@ -67,4 +67,9 @@ export const purchasesApi = {
   create: (packageId) => api.post('/purchases', { packageId }),
 };
 
+export const chatApi = {
+  getMessages: () => api.get('/chat/messages'),
+  sendMessage: (text) => api.post('/chat/messages', { text }),
+};
+
 export default api;

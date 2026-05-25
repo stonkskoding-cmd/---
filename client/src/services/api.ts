@@ -57,6 +57,8 @@ export const purchasesAPI = {
 export const chatAPI = {
   getMessages: (userId?: string) =>
     api.get<{ messages: Message[] }>('/chat/messages', { params: { userId } }),
+  sendMessage: (text: string) =>
+    api.post<{ message: Record<string, unknown> }>('/chat/messages', { text }),
   getConversations: () =>
     api.get<{ conversations: Conversation[] }>('/chat/conversations'),
 };

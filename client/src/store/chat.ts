@@ -25,12 +25,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeConversation: null,
   
   initializeSocket: (token) => {
-    const socket = io(
-      import.meta.env.VITE_SOCKET_URL || 'https://online-school-backend-mqn9.onrender.com',
-      {
+    const base =
+      import.meta.env.VITE_SOCKET_URL || 'https://online-school-backend-mqn9.onrender.com';
+    const socket = io(`${base}/support`, {
       path: '/socket.io',
       auth: { token },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     });
 
     socket.on('connect', () => {
