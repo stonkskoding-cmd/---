@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [draftHint, setDraftHint] = useState(null);
+  const [packageFormError, setPackageFormError] = useState('');
   const [coverUploadProgress, setCoverUploadProgress] = useState(0);
   const [materialUploadProgress, setMaterialUploadProgress] = useState(0);
 
@@ -240,9 +241,11 @@ export default function AdminDashboard() {
     setMaterialUploadProgress(0);
     setFieldErrors({});
     setDraftHint(null);
+    setPackageFormError('');
   };
 
   const openCreate = () => {
+    setPackageFormError('');
     const draft = loadPackageDraft();
     if (draft && window.confirm('Восстановить сохранённый черновик пакета?')) {
       setEditingId(null);
@@ -259,7 +262,7 @@ export default function AdminDashboard() {
             title: m.title || '',
             content: m.type === 'text' ? (m.content || '') : '',
             url: m.type === 'text' ? '' : (m.url || m.content || ''),
-            order: typeof m.order === 'number' ? m.order : i,
+            order: Number.isFinite(Number(m.order)) ? Number(m.order) : i,
           })),
         );
       } else {
@@ -294,6 +297,7 @@ export default function AdminDashboard() {
 
   const openEdit = (pkg) => {
     setFieldErrors({});
+    setPackageFormError('');
     setDraftHint(null);
     setEditingId(pkg.id);
     setTitle(pkg.title);
@@ -311,7 +315,7 @@ export default function AdminDashboard() {
           title: m.title || '',
           content: m.type === 'text' ? (m.content || '') : '',
           url: m.type === 'text' ? '' : (m.url || m.content || ''),
-          order: typeof m.order === 'number' ? m.order : i,
+          order: Number.isFinite(Number(m.order)) ? Number(m.order) : i,
         })),
       );
     }
@@ -374,10 +378,10 @@ export default function AdminDashboard() {
         const title = (m.title || '').trim() || `Материал ${i + 1}`;
         if (type === 'text') {
           const content = (m.content || '').trim() || (m.url || '').trim();
-          return { type: 'text', title, content, order: i };
+          return { type: 'text', title, content, order: Number(i) };
         }
         const url = (m.url || '').trim() || (m.content || '').trim();
-        return { type, title, url, order: i };
+        return { type, title, url, order: Number(i) };
       })
       .filter((row) => {
         if (row.type === 'text') return row.content.length > 0;
@@ -402,9 +406,11 @@ export default function AdminDashboard() {
     }
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
+      setPackageFormError('Проверьте выделенные поля');
       return;
     }
     setFieldErrors({});
+    setPackageFormError('');
 
     setSaving(true);
     setError('');
@@ -429,13 +435,32 @@ export default function AdminDashboard() {
       }
       clearPackageDraft();
       setSuccessMessage(editingId ? 'Пакет успешно обновлён' : 'Пакет успешно создан');
+      setPackageFormError('');
       closeModal();
       await loadPackages();
     } catch (err) {
       const d = err.response?.data;
-      const joined = Array.isArray(d?.errors) ? d.errors.map((x) => x.message).join(' ') : '';
-      const msg = d?.message || joined || err.response?.data?.errors?.[0]?.message;
-      setError(msg || 'Ошибка сохранения');
+      const status = err.response?.status;
+      const joined = Array.isArray(d?.errors) ? d.errors.map((x) => x.message).join(' · ') : '';
+      const msg = d?.message || joined || 'Ошибка сохранения';
+      setPackageFormError(msg);
+      if (status === 400 && Array.isArray(d?.errors)) {
+        const fe = {};
+        for (const e of d.errors) {
+          const path = String(e.field || '');
+          if (path.includes('title')) fe.title = e.message;
+          else if (path.includes('slug')) fe.slug = e.message;
+          else if (path.includes('price')) fe.price = e.message;
+          else if (path.includes('description')) fe.description = e.message;
+          else if (path.includes('materials')) {
+            fe.materials = fe.materials ? `${fe.materials} ${e.message}` : e.message;
+          }
+        }
+        if (Object.keys(fe).length) setFieldErrors(fe);
+        else setFieldErrors({});
+      } else {
+        setFieldErrors({});
+      }
     } finally {
       setSaving(false);
     }
@@ -845,6 +870,7 @@ export default function AdminDashboard() {
       <PackageFormModal
         open={modalOpen}
         onClose={closeModal}
+        formError={packageFormError}
         editingId={editingId}
         title={title}
         setTitle={setTitle}

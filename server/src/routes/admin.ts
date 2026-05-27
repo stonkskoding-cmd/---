@@ -7,14 +7,14 @@ export { adminUploadMulter, adminUploadRespond } from '../utils/cloudinary';
 
 const router = Router();
 
-/** Материалы: text — content; image|video|file — url (или legacy content как ссылка) */
+/** Материалы: text — content; image|video|file — url. order — coerce (из localStorage может быть строка). */
 const materialSchema = z
   .object({
     type: z.enum(['video', 'text', 'image', 'file']),
     url: z.string().optional(),
     content: z.string().optional(),
     title: z.string().optional(),
-    order: z.number().int().nonnegative(),
+    order: z.coerce.number().int().nonnegative(),
   })
   .superRefine((m, ctx) => {
     const url = (m.url ?? '').trim();
@@ -145,7 +145,7 @@ router.get('/packages', async (_req, res, next) => {
   }
 });
 
-router.post('/packages', validate(adminCreatePackageSchema), async (req, res, next) => {
+router.post('/packages', validate(adminCreatePackageSchema), async (req, res) => {
   try {
     const { title, description, price, category, coverUrl } = req.body as {
       title: string;
@@ -168,17 +168,19 @@ router.post('/packages', validate(adminCreatePackageSchema), async (req, res, ne
         price,
         category,
         coverUrl: cover,
-        materials: materialsJson.length ? materialsJson : [],
+        materials: materialsJson.length > 0 ? materialsJson : [],
       },
     });
 
     res.status(201).json({ message: 'Package created', package: pkg });
   } catch (error) {
-    next(error);
+    console.error('[admin] POST /packages', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
   }
 });
 
-router.put('/packages/:id', validate(adminUpdatePackageSchema), async (req, res, next) => {
+router.put('/packages/:id', validate(adminUpdatePackageSchema), async (req, res) => {
   try {
     const { id } = req.params;
     const { title, slug, description, price, category, coverUrl } = req.body as {
@@ -217,13 +219,15 @@ router.put('/packages/:id', validate(adminUpdatePackageSchema), async (req, res,
         price,
         category,
         coverUrl: cover,
-        materials: materialsJson.length ? materialsJson : [],
+        materials: materialsJson.length > 0 ? materialsJson : [],
       },
     });
 
     res.json({ message: 'Package updated', package: pkg });
   } catch (error) {
-    next(error);
+    console.error('[admin] PUT /packages/:id', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
   }
 });
 

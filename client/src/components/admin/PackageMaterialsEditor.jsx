@@ -14,6 +14,8 @@ export default function PackageMaterialsEditor({
   materialUploadIndex,
   onMaterialFileUpload,
   fieldErrors,
+  disabled = false,
+  materialUploadProgress = 0,
 }) {
   const addRow = () => {
     setMaterials((prev) => [
@@ -44,20 +46,20 @@ export default function PackageMaterialsEditor({
   );
 
   return (
-    <div className="space-y-3 border-t border-gray-200 pt-4">
+    <div className="space-y-3 pt-1">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-[#244E77]">Материалы пакета</h3>
           <p className="text-xs text-gray-500">
-            Порядок в списке = порядок уроков. Перетащите строку за ⋮⋮ или используйте стрелки.
+            Порядок в списке = порядок на сайте. Перетащите строку за ⋮⋮ или используйте стрелки.
           </p>
         </div>
         <button
           type="button"
           onClick={addRow}
-          className="rounded-lg border border-[#244E77] bg-white px-3 py-1.5 text-xs font-semibold text-[#244E77] transition hover:bg-[#244E77] hover:text-white"
+          disabled={disabled}
+          className="rounded-lg border border-[#244E77] bg-white px-3 py-2 text-xs font-semibold text-[#244E77] transition hover:bg-[#244E77] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          + Материал
+          + Добавить материал
         </button>
       </div>
       {fieldErrors?.materials ? (
@@ -68,7 +70,7 @@ export default function PackageMaterialsEditor({
         {materials.map((m, index) => (
           <div
             key={`mat-${index}`}
-            draggable
+            draggable={!disabled}
             onDragStart={(e) => {
               e.dataTransfer.setData('text/plain', String(index));
               e.dataTransfer.effectAllowed = 'move';
@@ -91,6 +93,7 @@ export default function PackageMaterialsEditor({
               </span>
               <select
                 value={m.type}
+                disabled={disabled}
                 onChange={(e) => {
                   const v = e.target.value;
                   setMaterials((prev) =>
@@ -106,7 +109,7 @@ export default function PackageMaterialsEditor({
                     ),
                   );
                 }}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-medium"
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-medium disabled:bg-gray-100"
               >
                 {MATERIAL_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -118,7 +121,7 @@ export default function PackageMaterialsEditor({
                 <button
                   type="button"
                   title="Вверх"
-                  disabled={index === 0}
+                  disabled={disabled || index === 0}
                   onClick={() => moveRow(index, index - 1)}
                   className="rounded border border-gray-200 px-2 py-0.5 text-xs disabled:opacity-30"
                 >
@@ -127,7 +130,7 @@ export default function PackageMaterialsEditor({
                 <button
                   type="button"
                   title="Вниз"
-                  disabled={index === materials.length - 1}
+                  disabled={disabled || index === materials.length - 1}
                   onClick={() => moveRow(index, index + 1)}
                   className="rounded border border-gray-200 px-2 py-0.5 text-xs disabled:opacity-30"
                 >
@@ -135,8 +138,9 @@ export default function PackageMaterialsEditor({
                 </button>
                 <button
                   type="button"
+                  disabled={disabled}
                   onClick={() => removeRow(index)}
-                  className="text-xs font-medium text-red-600 hover:underline"
+                  className="text-xs font-medium text-red-600 hover:underline disabled:opacity-40"
                 >
                   Удалить
                 </button>
@@ -146,16 +150,18 @@ export default function PackageMaterialsEditor({
               type="text"
               placeholder="Заголовок урока"
               value={m.title}
+              disabled={disabled}
               onChange={(e) => update(index, 'title', e.target.value)}
-              className="mb-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#244E77] focus:ring-1 focus:ring-[#244E77]/20"
+              className="mb-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#244E77] focus:ring-1 focus:ring-[#244E77]/20 disabled:bg-gray-50"
             />
             {m.type === 'text' ? (
               <textarea
                 placeholder="Текст урока"
                 value={m.content}
+                disabled={disabled}
                 onChange={(e) => update(index, 'content', e.target.value)}
                 rows={3}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#244E77]"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#244E77] disabled:bg-gray-50"
               />
             ) : (
               <div className="space-y-2">
@@ -163,16 +169,17 @@ export default function PackageMaterialsEditor({
                   type="url"
                   placeholder="Ссылка на видео или файл (https://…)"
                   value={m.url}
+                  disabled={disabled}
                   onChange={(e) => update(index, 'url', e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#244E77]"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#244E77] disabled:bg-gray-50"
                 />
                 <FileUploadZone
                   id={`mat-upload-${index}`}
                   compact
                   accept="image/*,video/*,.pdf,.doc,.docx,.zip"
-                  disabled={materialUploadIndex === index}
+                  disabled={disabled || materialUploadIndex === index}
                   uploading={materialUploadIndex === index}
-                  progress={materialUploadIndex === index ? 72 : 0}
+                  progress={materialUploadIndex === index ? materialUploadProgress : 0}
                   onFile={(file) => onMaterialFileUpload(index, file)}
                 />
               </div>

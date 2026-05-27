@@ -16,9 +16,23 @@ function countMaterials(materials) {
   }).length;
 }
 
+function Spinner() {
+  return (
+    <svg className="h-5 w-5 animate-spin text-[#D4AF37]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
+}
+
 export default function PackageFormModal({
   open,
   onClose,
+  formError = '',
   editingId,
   title,
   setTitle,
@@ -72,7 +86,8 @@ export default function PackageFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-white/90 transition hover:bg-white/15"
+            disabled={saving}
+            className="rounded-full p-2 text-white/90 transition hover:bg-white/15 disabled:opacity-50"
             aria-label="Закрыть"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -87,6 +102,12 @@ export default function PackageFormModal({
             <button type="button" onClick={onDiscardDraft} className="font-semibold underline hover:text-amber-700">
               Сбросить черновик
             </button>
+          </div>
+        ) : null}
+
+        {formError ? (
+          <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:px-6" role="alert">
+            {formError}
           </div>
         ) : null}
 
@@ -144,154 +165,192 @@ export default function PackageFormModal({
           </div>
         ) : (
           <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-              <div className="rounded-xl border border-blue-100 bg-blue-50/80 p-3 text-xs text-[#163754]">
-                <strong className="font-semibold">API сейчас:</strong> название, slug (при редактировании), категория,
-                цена, описание, обложка, материалы (JSON). Поля «скидка», «активен», «даты продаж», «SEO meta» в базе
-                пока нет — при необходимости добавим миграцию Prisma.
-              </div>
-
-              <div>
-                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600">
-                  Название пакета <span className="text-red-500">*</span>
-                  <span className="font-normal text-gray-400" title="Отображается в каталоге">
-                    ⓘ
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              {/* Блок А: основная информация */}
+              <section className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 shadow-sm sm:p-5">
+                <h3 className="mb-4 flex items-center gap-2 border-b border-gray-200 pb-2 text-sm font-bold uppercase tracking-wide text-[#244E77]">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#244E77] text-xs text-[#D4AF37]">
+                    1
                   </span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-[#244E77]/25 ${
-                    fieldErrors.title ? 'border-red-400 bg-red-50/50' : 'border-gray-300 focus:border-[#244E77]'
-                  }`}
-                />
-                {fieldErrors.title ? <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p> : null}
-              </div>
-
-              {editingId ? (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">
-                    Slug (URL) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    className={`w-full rounded-xl border px-3 py-2.5 font-mono text-sm outline-none focus:ring-2 focus:ring-[#244E77]/25 ${
-                      fieldErrors.slug ? 'border-red-400' : 'border-gray-300 focus:border-[#244E77]'
-                    }`}
-                  />
-                  {fieldErrors.slug ? <p className="mt-1 text-xs text-red-600">{fieldErrors.slug}</p> : null}
-                </div>
-              ) : null}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Категория</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-[#244E77] focus:ring-2 focus:ring-[#244E77]/20"
-                  >
-                    {CATEGORY_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 flex items-center gap-1 text-xs font-medium text-gray-600">
-                    Цена, ₽ <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#244E77]/25 ${
-                      fieldErrors.price ? 'border-red-400 bg-red-50/50' : 'border-gray-300 focus:border-[#244E77]'
-                    }`}
-                  />
-                  {fieldErrors.price ? <p className="mt-1 text-xs text-red-600">{fieldErrors.price}</p> : null}
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
-                  Описание <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={5}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#244E77]/25 ${
-                    fieldErrors.description ? 'border-red-400' : 'border-gray-300 focus:border-[#244E77]'
-                  }`}
-                />
-                {fieldErrors.description ? <p className="mt-1 text-xs text-red-600">{fieldErrors.description}</p> : null}
-              </div>
-
-              <div>
-                <FileUploadZone
-                  id="package-cover-upload"
-                  label="Обложка пакета"
-                  hint="Изображение для карточки в каталоге"
-                  accept="image/*,.pdf,.doc,.docx,.zip"
-                  disabled={coverUploading}
-                  uploading={coverUploading}
-                  progress={coverUploadProgress}
-                  onFile={onCoverFile}
-                />
-                {coverUrl ? (
-                  <div className="mt-3 flex flex-wrap items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                    <img
-                      src={coverUrl}
-                      alt="Превью обложки"
-                      className="h-28 max-w-[40%] rounded-lg border border-gray-200 object-contain shadow-sm"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
+                  Основная информация
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Название пакета <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      disabled={saving}
+                      placeholder="Например: ЕГЭ История — полный курс"
+                      className={`w-full rounded-xl border px-3 py-3 text-sm outline-none transition focus:ring-2 focus:ring-[#244E77]/25 disabled:bg-gray-100 ${
+                        fieldErrors.title ? 'border-red-500 bg-red-50/40 ring-1 ring-red-200' : 'border-gray-300 focus:border-[#244E77]'
+                      }`}
                     />
-                    <div className="min-w-0 flex-1">
-                      <a href={coverUrl} target="_blank" rel="noreferrer" className="break-all text-xs text-[#244E77] underline">
-                        {coverUrl}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => setCoverUrl('')}
-                        className="mt-2 block text-xs font-medium text-red-600 hover:underline"
+                    {fieldErrors.title ? <p className="mt-1 text-xs font-medium text-red-600">{fieldErrors.title}</p> : null}
+                  </div>
+
+                  {editingId ? (
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-700">
+                        Slug (URL) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value)}
+                        disabled={saving}
+                        className={`w-full rounded-xl border px-3 py-3 font-mono text-sm outline-none focus:ring-2 focus:ring-[#244E77]/25 disabled:bg-gray-100 ${
+                          fieldErrors.slug ? 'border-red-500 bg-red-50/40' : 'border-gray-300 focus:border-[#244E77]'
+                        }`}
+                      />
+                      {fieldErrors.slug ? <p className="mt-1 text-xs font-medium text-red-600">{fieldErrors.slug}</p> : null}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-700">Категория</label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        disabled={saving}
+                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-[#244E77] focus:ring-2 focus:ring-[#244E77]/20 disabled:bg-gray-100"
                       >
-                        Убрать обложку
-                      </button>
+                        {CATEGORY_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-gray-700">
+                        Цена, ₽ <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        disabled={saving}
+                        placeholder="9900"
+                        className={`w-full rounded-xl border px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[#244E77]/25 disabled:bg-gray-100 ${
+                          fieldErrors.price ? 'border-red-500 bg-red-50/40 ring-1 ring-red-200' : 'border-gray-300 focus:border-[#244E77]'
+                        }`}
+                      />
+                      {fieldErrors.price ? <p className="mt-1 text-xs font-medium text-red-600">{fieldErrors.price}</p> : null}
                     </div>
                   </div>
-                ) : null}
-              </div>
 
-              <PackageMaterialsEditor
-                materials={materials}
-                setMaterials={setMaterials}
-                materialUploadIndex={materialUploadIndex}
-                onMaterialFileUpload={onMaterialFileUpload}
-                fieldErrors={fieldErrors}
-              />
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                      Описание <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={saving}
+                      rows={5}
+                      placeholder="Опишите содержание пакета для каталога"
+                      className={`w-full rounded-xl border px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-[#244E77]/25 disabled:bg-gray-100 ${
+                        fieldErrors.description ? 'border-red-500 bg-red-50/40 ring-1 ring-red-200' : 'border-gray-300 focus:border-[#244E77]'
+                      }`}
+                    />
+                    {fieldErrors.description ? (
+                      <p className="mt-1 text-xs font-medium text-red-600">{fieldErrors.description}</p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <FileUploadZone
+                      id="package-cover-upload"
+                      label="Обложка"
+                      hint="По желанию. Изображение для карточки в каталоге."
+                      accept="image/*,.pdf,.doc,.docx,.zip"
+                      disabled={saving || coverUploading}
+                      uploading={coverUploading}
+                      progress={coverUploadProgress}
+                      onFile={onCoverFile}
+                    />
+                    {coverUrl ? (
+                      <div className="mt-3 flex flex-wrap items-start gap-3 rounded-xl border border-gray-200 bg-white p-3">
+                        <img
+                          src={coverUrl}
+                          alt=""
+                          className="h-24 max-w-[35%] rounded-lg border border-gray-200 object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <a href={coverUrl} target="_blank" rel="noreferrer" className="break-all text-xs text-[#244E77] underline">
+                            Открыть файл
+                          </a>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => setCoverUrl('')}
+                            className="mt-2 block text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                          >
+                            Убрать обложку
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+
+              {/* Блок Б: материалы */}
+              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                <h3 className="mb-1 flex items-center gap-2 border-b border-gray-100 pb-3 text-sm font-bold uppercase tracking-wide text-[#244E77]">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#D4AF37] text-xs font-bold text-[#244E77]">
+                    2
+                  </span>
+                  Материалы (уроки, видео, файлы)
+                </h3>
+                <p className="mb-4 text-xs text-gray-500">
+                  Материалы необязательны для сохранения пакета. Добавьте уроки или загрузите файлы — порядок в списке =
+                  порядок на сайте.
+                </p>
+                <PackageMaterialsEditor
+                  materials={materials}
+                  setMaterials={setMaterials}
+                  materialUploadIndex={materialUploadIndex}
+                  onMaterialFileUpload={onMaterialFileUpload}
+                  fieldErrors={fieldErrors}
+                  disabled={saving}
+                  materialUploadProgress={materialUploadProgress}
+                />
+              </section>
             </div>
 
-            <div className="flex shrink-0 flex-wrap gap-2 border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+            <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-gray-200 bg-white px-4 py-4 sm:px-6">
               <button
                 type="submit"
-                disabled={saving}
-                className="min-w-[8rem] flex-1 rounded-xl bg-gradient-to-r from-[#244E77] to-[#163754] py-3 text-sm font-bold text-[#D4AF37] shadow-md transition hover:shadow-lg disabled:opacity-50 sm:flex-none sm:px-8"
+                disabled={saving || coverUploading}
+                className="inline-flex min-w-[10rem] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#244E77] to-[#163754] py-3.5 text-sm font-bold text-[#D4AF37] shadow-md transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none sm:px-10"
               >
-                {saving ? 'Сохранение…' : editingId ? 'Сохранить' : 'Создать пакет'}
+                {saving ? (
+                  <>
+                    <Spinner />
+                    Сохранение…
+                  </>
+                ) : editingId ? (
+                  'Сохранить изменения'
+                ) : (
+                  'Создать пакет'
+                )}
               </button>
               <button
                 type="button"
+                disabled={saving}
                 onClick={onClose}
-                className="rounded-xl border-2 border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                className="rounded-xl border-2 border-gray-300 px-6 py-3.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
               >
                 Отмена
               </button>
