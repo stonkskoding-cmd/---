@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { adminApiClient } from '../api';
-
-const CATEGORY_OPTIONS = [
-  { value: 'OGE-IST', label: 'ОГЭ История' },
-  { value: 'EGE-IST', label: 'ЕГЭ История' },
-  { value: 'EGE-SOC', label: 'ЕГЭ Обществознание' },
-];
-
-const MATERIAL_TYPES = [
-  { value: 'text', label: 'Текст' },
-  { value: 'image', label: 'Изображение' },
-  { value: 'video', label: 'Видео' },
-  { value: 'file', label: 'Файл' },
-];
+import AdminPackages from '../components/admin/AdminPackages';
+import PackageFormModal from '../components/admin/PackageFormModal';
+import { clearPackageDraft, loadPackageDraft, savePackageDraft } from '../utils/packageDraft';
 
 const emptyMaterial = (order) => ({
   type: 'text',
@@ -77,6 +67,11 @@ export default function AdminDashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [successMessage, setSuccessMessage] = useState('');
+  const [draftHint, setDraftHint] = useState(null);
+  const [coverUploadProgress, setCoverUploadProgress] = useState(0);
+  const [materialUploadProgress, setMaterialUploadProgress] = useState(0);
 
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
@@ -126,6 +121,28 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadPackages();
   }, [loadPackages]);
+
+  useEffect(() => {
+    if (!successMessage) return undefined;
+    const t = setTimeout(() => setSuccessMessage(''), 4500);
+    return () => clearTimeout(t);
+  }, [successMessage]);
+
+  useEffect(() => {
+    if (!modalOpen || editingId) return undefined;
+    const t = setTimeout(() => {
+      savePackageDraft({
+        title,
+        slug,
+        category,
+        price,
+        description,
+        coverUrl,
+        materials,
+      });
+    }, 700);
+    return () => clearTimeout(t);
+  }, [modalOpen, editingId, title, slug, category, price, description, coverUrl, materials]);
 
   useEffect(() => {
     let cancelled = false;
@@ -218,34 +235,66 @@ export default function AdminDashboard() {
     setMaterials([emptyMaterial(0)]);
     setCoverUrl('');
     setCoverUploading(false);
+    setCoverUploadProgress(0);
     setMaterialUploadIndex(null);
+    setMaterialUploadProgress(0);
+    setFieldErrors({});
+    setDraftHint(null);
   };
 
   const openCreate = () => {
-    resetForm();
+    const draft = loadPackageDraft();
+    if (draft && window.confirm('Восстановить сохранённый черновик пакета?')) {
+      setEditingId(null);
+      setTitle(draft.title ?? '');
+      setSlug(draft.slug ?? '');
+      setCategory(draft.category && ['OGE-IST', 'EGE-IST', 'EGE-SOC'].includes(draft.category) ? draft.category : 'OGE-IST');
+      setPrice(draft.price != null ? String(draft.price) : '');
+      setDescription(draft.description ?? '');
+      setCoverUrl(draft.coverUrl ?? '');
+      if (Array.isArray(draft.materials) && draft.materials.length > 0) {
+        setMaterials(
+          draft.materials.map((m, i) => ({
+            type: m.type || 'text',
+            title: m.title || '',
+            content: m.type === 'text' ? (m.content || '') : '',
+            url: m.type === 'text' ? '' : (m.url || m.content || ''),
+            order: typeof m.order === 'number' ? m.order : i,
+          })),
+        );
+      } else {
+        setMaterials([emptyMaterial(0)]);
+      }
+      setDraftHint('Черновик восстановлен из браузера.');
+    } else {
+      resetForm();
+      setDraftHint('Изменения автоматически сохраняются как черновик в этом браузере.');
+    }
     setModalOpen(true);
   };
 
-  const handleCoverFileChange = async (e) => {
-    const input = e.target;
-    const file = input.files?.[0];
-    input.value = '';
+  const handleCoverFileChange = async (file) => {
     if (!file) return;
     setCoverUploading(true);
+    setCoverUploadProgress(0);
     setError('');
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const { data } = await adminApiClient.uploadFile(fd);
+      const { data } = await adminApiClient.uploadFileWithProgress(fd, (p) => setCoverUploadProgress(p));
       if (data?.url) setCoverUrl(data.url);
+      setCoverUploadProgress(100);
     } catch {
       setError('Не удалось загрузить файл. Проверьте авторизацию и размер файла.');
     } finally {
       setCoverUploading(false);
+      setTimeout(() => setCoverUploadProgress(0), 400);
     }
   };
 
   const openEdit = (pkg) => {
+    setFieldErrors({});
+    setDraftHint(null);
     setEditingId(pkg.id);
     setTitle(pkg.title);
     setSlug(pkg.slug);
@@ -275,27 +324,27 @@ export default function AdminDashboard() {
     resetForm();
   };
 
-  const addMaterialRow = () => {
-    setMaterials((prev) => [...prev, emptyMaterial(prev.length)]);
+  const handleDiscardDraft = () => {
+    clearPackageDraft();
+    setDraftHint('Черновик в браузере удалён.');
+    if (!editingId) {
+      setTitle('');
+      setSlug('');
+      setCategory('OGE-IST');
+      setPrice('');
+      setDescription('');
+      setMaterials([emptyMaterial(0)]);
+      setCoverUrl('');
+    }
   };
-
-  const removeMaterialRow = (index) => {
-    setMaterials((prev) => prev.filter((_, i) => i !== index).map((m, i) => ({ ...m, order: i })));
-  };
-
-  const updateMaterial = (index, field, value) => {
-    setMaterials((prev) =>
-      prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)),
-    );
-  };
-
   const handleMaterialFileUpload = async (index, file) => {
     setMaterialUploadIndex(index);
+    setMaterialUploadProgress(0);
     setError('');
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const { data } = await adminApiClient.uploadFile(fd);
+      const { data } = await adminApiClient.uploadFileWithProgress(fd, (p) => setMaterialUploadProgress(p));
       if (!data?.url) return;
       const guess = file.type.startsWith('image/')
         ? 'image'
@@ -309,10 +358,12 @@ export default function AdminDashboard() {
           return { ...row, url: data.url, type: nextType, content: '' };
         }),
       );
+      setMaterialUploadProgress(100);
     } catch {
       setError('Не удалось загрузить файл материала.');
     } finally {
       setMaterialUploadIndex(null);
+      setTimeout(() => setMaterialUploadProgress(0), 400);
     }
   };
 
@@ -335,6 +386,26 @@ export default function AdminDashboard() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errs = {};
+    if (title.trim().length < 3) {
+      errs.title = 'Название — не менее 3 символов';
+    }
+    if (description.trim().length < 3) {
+      errs.description = 'Описание — не менее 3 символов';
+    }
+    const priceNum = Number(price);
+    if (!price || !Number.isFinite(priceNum) || priceNum < 1 || !Number.isInteger(priceNum)) {
+      errs.price = 'Укажите целую цену в рублях (от 1)';
+    }
+    if (editingId && slug.trim().length < 3) {
+      errs.slug = 'Slug — не менее 3 символов';
+    }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
+    setFieldErrors({});
+
     setSaving(true);
     setError('');
     try {
@@ -342,7 +413,7 @@ export default function AdminDashboard() {
       const payloadBase = {
         title: title.trim(),
         description: description.trim(),
-        price: Number(price),
+        price: priceNum,
         category,
         coverUrl: coverUrl.trim() || null,
         materials: mats,
@@ -356,6 +427,8 @@ export default function AdminDashboard() {
       } else {
         await adminApiClient.createPackage(payloadBase);
       }
+      clearPackageDraft();
+      setSuccessMessage(editingId ? 'Пакет успешно обновлён' : 'Пакет успешно создан');
       closeModal();
       await loadPackages();
     } catch (err) {
@@ -460,9 +533,6 @@ export default function AdminDashboard() {
     navigate('/', { replace: true });
   };
 
-  const categoryLabel = (value) =>
-    CATEGORY_OPTIONS.find((c) => c.value === value)?.label || value;
-
   const tabBase =
     'rounded-t-lg px-5 py-3 text-sm font-semibold transition border border-b-0 border-gray-200';
   const tabActive = 'bg-[#244E77] text-white border-[#244E77]';
@@ -511,65 +581,38 @@ export default function AdminDashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {successMessage ? (
+          <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-sm">
+            {successMessage}
+          </p>
+        ) : null}
         {error ? (
           <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
         ) : null}
 
         {activeTab === 'packages' ? (
           <>
-            <div className="mb-6 flex justify-end">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-[#244E77] sm:text-xl">Каталог пакетов</h2>
+                <p className="text-sm text-gray-500">Создание, редактирование и удаление учебных пакетов</p>
+              </div>
               <button
                 type="button"
                 onClick={openCreate}
-                className="rounded-lg bg-[#244E77] px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-[#163754]"
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#244E77] to-[#163754] px-5 py-3 text-sm font-bold text-[#D4AF37] shadow-md transition hover:shadow-lg"
               >
-                ➕ Добавить пакет
+                + Создать пакет
               </button>
             </div>
 
-            {loading ? (
-              <p className="text-gray-600">Загрузка…</p>
-            ) : packages.length === 0 ? (
-              <p className="text-gray-600">Пакетов пока нет.</p>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow">
-                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-                  <thead className="bg-[#244E77] text-white">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Название</th>
-                      <th className="px-4 py-3 font-semibold">Цена, ₽</th>
-                      <th className="px-4 py-3 font-semibold">Категория</th>
-                      <th className="px-4 py-3 font-semibold text-right">Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {packages.map((pkg) => (
-                      <tr key={pkg.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-[#244E77]">{pkg.title}</td>
-                        <td className="px-4 py-3">{pkg.price}</td>
-                        <td className="px-4 py-3">{categoryLabel(pkg.category)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(pkg)}
-                            className="mr-2 rounded-lg bg-gradient-to-r from-[#D4AF37] to-[#e8c85c] px-3 py-1.5 text-xs font-semibold text-[#244E77] hover:from-[#c9a431]"
-                          >
-                            Редактировать
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(pkg.id)}
-                            className="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
-                          >
-                            Удалить
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <AdminPackages
+              packages={packages}
+              loading={loading}
+              onCreate={openCreate}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
           </>
         ) : (
           <div className="flex h-[calc(100vh-200px)] min-h-[380px] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg md:flex-row">
@@ -799,245 +842,36 @@ export default function AdminDashboard() {
         )}
       </main>
 
-      {modalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div
-            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-gray-200 bg-white p-6 shadow-xl"
-            role="dialog"
-            aria-modal="true"
-          >
-            <h2 className="mb-4 text-lg font-bold text-[#244E77]">
-              {editingId ? 'Редактировать пакет' : 'Новый пакет'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Название пакета</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                  minLength={3}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[#244E77]"
-                />
-              </div>
-              {editingId ? (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Slug (URL)</label>
-                  <input
-                    type="text"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    required
-                    minLength={3}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm outline-none focus:border-[#244E77]"
-                  />
-                </div>
-              ) : null}
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Категория</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[#244E77]"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Цена (₽)</label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[#244E77]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Описание</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                  minLength={3}
-                  rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-[#244E77]"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Обложка пакета</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf,.doc,.docx,.zip"
-                  disabled={coverUploading}
-                  onChange={handleCoverFileChange}
-                  className="w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#244E77] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-[#163754]"
-                />
-                {coverUploading ? (
-                  <p className="mt-1 text-xs text-gray-500">Загрузка файла…</p>
-                ) : null}
-                {coverUrl ? (
-                  <div className="mt-2 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <a
-                        href={coverUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate text-xs text-[#244E77] underline"
-                      >
-                        {coverUrl}
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() => setCoverUrl('')}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        Убрать обложку
-                      </button>
-                    </div>
-                    <img
-                      src={coverUrl}
-                      alt=""
-                      className="max-h-40 max-w-full rounded-lg border border-gray-200 object-contain shadow-sm"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="border-t border-gray-200 pt-2">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#244E77]">Материалы</span>
-                  <button
-                    type="button"
-                    onClick={addMaterialRow}
-                    className="text-xs font-medium text-[#244E77] underline hover:text-[#163754]"
-                  >
-                    + Добавить материал
-                  </button>
-                </div>
-                <p className="mb-2 text-xs text-gray-500">
-                  Текст вводится вручную. Для изображения, видео и файла — ссылка или кнопка «Загрузить файл» (сервер,
-                  папка uploads).
-                </p>
-                <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
-                  {materials.map((m, index) => (
-                    <div key={index} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        <select
-                          value={m.type}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setMaterials((prev) =>
-                              prev.map((row, i) =>
-                                i === index
-                                  ? {
-                                      ...row,
-                                      type: v,
-                                      url: v === 'text' ? '' : row.url,
-                                      content: v === 'text' ? row.content || row.url : '',
-                                    }
-                                  : row,
-                              ),
-                            );
-                          }}
-                          className="rounded border border-gray-300 px-2 py-1 text-xs"
-                        >
-                          {MATERIAL_TYPES.map((t) => (
-                            <option key={t.value} value={t.value}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => removeMaterialRow(index)}
-                          className="ml-auto text-xs text-red-600 hover:underline"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Заголовок материала"
-                        value={m.title}
-                        onChange={(e) => updateMaterial(index, 'title', e.target.value)}
-                        className="mb-2 w-full rounded border border-gray-200 px-2 py-1 text-sm"
-                      />
-                      {m.type === 'text' ? (
-                        <textarea
-                          placeholder="Текст урока"
-                          value={m.content}
-                          onChange={(e) => updateMaterial(index, 'content', e.target.value)}
-                          rows={3}
-                          className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
-                        />
-                      ) : (
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            placeholder="https://… или URL после загрузки"
-                            value={m.url}
-                            onChange={(e) => updateMaterial(index, 'url', e.target.value)}
-                            className="w-full rounded border border-gray-200 px-2 py-1 text-sm"
-                          />
-                          <div className="flex flex-wrap items-center gap-2">
-                            <input
-                              type="file"
-                              id={`material-file-${index}`}
-                              className="sr-only"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                e.target.value = '';
-                                if (f) void handleMaterialFileUpload(index, f);
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => document.getElementById(`material-file-${index}`)?.click()}
-                              disabled={materialUploadIndex === index}
-                              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-[#244E77] hover:bg-gray-100 disabled:opacity-50"
-                            >
-                              {materialUploadIndex === index ? '⏳ Загрузка…' : '📤 Загрузить файл'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 rounded-lg bg-[#244E77] py-2.5 text-sm font-semibold text-[#D4AF37] disabled:opacity-50"
-                >
-                  {saving ? 'Сохранение…' : editingId ? 'Сохранить' : 'Создать'}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="rounded-lg border-2 border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  Отмена
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      <PackageFormModal
+        open={modalOpen}
+        onClose={closeModal}
+        editingId={editingId}
+        title={title}
+        setTitle={setTitle}
+        slug={slug}
+        setSlug={setSlug}
+        category={category}
+        setCategory={setCategory}
+        price={price}
+        setPrice={setPrice}
+        description={description}
+        setDescription={setDescription}
+        coverUrl={coverUrl}
+        setCoverUrl={setCoverUrl}
+        materials={materials}
+        setMaterials={setMaterials}
+        coverUploading={coverUploading}
+        coverUploadProgress={coverUploadProgress}
+        materialUploadIndex={materialUploadIndex}
+        materialUploadProgress={materialUploadProgress}
+        onCoverFile={handleCoverFileChange}
+        onMaterialFileUpload={handleMaterialFileUpload}
+        saving={saving}
+        onSubmit={handleSubmit}
+        fieldErrors={fieldErrors}
+        draftHint={draftHint}
+        onDiscardDraft={handleDiscardDraft}
+      />
     </div>
   );
 }
