@@ -424,6 +424,14 @@ export default function AdminDashboard() {
         coverUrl: coverUrl.trim() || null,
         materials: mats,
       };
+      console.log('[admin-ui] submit package', {
+        mode: editingId ? 'update' : 'create',
+        title: payloadBase.title,
+        price: payloadBase.price,
+        category: payloadBase.category,
+        materialsCount: payloadBase.materials.length,
+        hasCover: Boolean(payloadBase.coverUrl),
+      });
 
       if (editingId) {
         await adminApiClient.updatePackage(editingId, {
@@ -439,6 +447,7 @@ export default function AdminDashboard() {
       closeModal();
       await loadPackages();
     } catch (err) {
+      console.error('[admin-ui] package save failed', err);
       const d = err.response?.data;
       const status = err.response?.status;
       const joined = Array.isArray(d?.errors) ? d.errors.map((x) => x.message).join(' · ') : '';

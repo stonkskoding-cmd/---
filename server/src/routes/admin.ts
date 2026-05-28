@@ -159,6 +159,13 @@ router.post('/packages', validate(adminCreatePackageSchema), async (req, res) =>
     const materialsJson = materialsToJson(materialsRaw);
     const slug = await uniqueSlugFromTitle(title);
     const cover = typeof coverUrl === 'string' && coverUrl.trim() ? coverUrl.trim() : null;
+    console.log('[admin] POST /packages payload', {
+      title,
+      price,
+      category,
+      materialsCount: materialsJson.length,
+      hasCover: Boolean(cover),
+    });
 
     const pkg = await prisma.package.create({
       data: {
@@ -195,6 +202,15 @@ router.put('/packages/:id', validate(adminUpdatePackageSchema), async (req, res)
     const materialsRaw = Array.isArray(raw.materials) ? raw.materials : [];
     const materialsJson = materialsToJson(materialsRaw);
     const cover = typeof coverUrl === 'string' && coverUrl.trim() ? coverUrl.trim() : null;
+    console.log('[admin] PUT /packages/:id payload', {
+      id,
+      title,
+      slug,
+      price,
+      category,
+      materialsCount: materialsJson.length,
+      hasCover: Boolean(cover),
+    });
 
     const exists = await prisma.package.findUnique({ where: { id } });
     if (!exists) {
