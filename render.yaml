@@ -5,9 +5,8 @@ services:
     runtime: node
     plan: free
     rootDir: server
-    # postinstall = prisma generate only (fast). Migrations run at start, not during build.
     buildCommand: npm install --include=dev && npm run build
-    startCommand: npm run db:migrate && npm start
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
