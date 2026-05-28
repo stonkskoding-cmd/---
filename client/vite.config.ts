@@ -4,6 +4,8 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  // Статика (в т.ч. _redirects) копируется в dist при build
+  publicDir: 'public',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
