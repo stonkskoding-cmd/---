@@ -44,12 +44,15 @@ export function useChat(isOpen: boolean) {
     setLoading(true);
     setError(null);
     try {
+      console.log('[chat-ui] loadMessages');
       const { data } = await chatAPI.getMessages();
       const list = (data.messages ?? []).map((m) =>
         normalizeMessage(m as unknown as Record<string, unknown>),
       );
+      console.log('[chat-ui] loadMessages ok, count:', list.length);
       setMessages(list);
     } catch (err: unknown) {
+      console.error('[chat-ui] loadMessages failed', err);
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
@@ -73,10 +76,16 @@ export function useChat(isOpen: boolean) {
 
     socketRef.current = socket;
 
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
+    socket.on('connect', () => {
+      console.log('[chat-ui] socket connected');
+      setIsConnected(true);
+    });
+    socket.on('disconnect', () => {
+      console.log('[chat-ui] socket disconnected');
+      setIsConnected(false);
+    });
 
-    socket.on('message', (raw: Record<string, unknown>) => {
+    const appendMessage = (raw: Record<string, unknown>) => {
       const item = normalizeMessage(raw);
       setMessages((prev) => {
         if (prev.some((m) => m.id === item.id)) return prev;
@@ -85,7 +94,10 @@ export function useChat(isOpen: boolean) {
       if (item.isFromAdmin && !isOpenRef.current) {
         setUnreadCount((c) => c + 1);
       }
-    });
+    };
+
+    socket.on('message', appendMessage);
+    socket.on('receive_message', appendMessage);
 
     return () => {
       socket.disconnect();
@@ -112,8 +124,9 @@ export function useChat(isOpen: boolean) {
 
       try {
         if (socket?.connected) {
+          console.log('[chat-ui] send via socket', trimmed.length);
           await new Promise<void>((resolve, reject) => {
-            socket.emit('message', { text: trimmed }, (response: {
+            const emitSend = (response: {
               success: boolean;
               message?: Record<string, unknown>;
               error?: string;
@@ -127,9 +140,11 @@ export function useChat(isOpen: boolean) {
               } else {
                 reject(new Error(response?.error || 'Ошибка отправки'));
               }
-            });
+            };
+            socket.emit('send_message', { text: trimmed }, emitSend);
           });
         } else {
+          console.log('[chat-ui] send via REST', trimmed.length);
           const { data } = await chatAPI.sendMessage(trimmed);
           const item = normalizeMessage(data.message ?? {});
           setMessages((prev) =>
@@ -137,6 +152,7 @@ export function useChat(isOpen: boolean) {
           );
         }
       } catch (err: unknown) {
+        console.error('[chat-ui] send failed', err);
         const msg = err instanceof Error ? err.message : 'Не удалось отправить сообщение';
         setError(msg);
       } finally {

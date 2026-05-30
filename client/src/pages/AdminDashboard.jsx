@@ -110,10 +110,14 @@ export default function AdminDashboard() {
     setLoading(true);
     setError('');
     try {
+      console.log('[admin-ui] loadPackages');
       const { data } = await adminApiClient.packages();
+      console.log('[admin-ui] loadPackages ok, count:', data.packages?.length ?? 0);
       setPackages(data.packages ?? []);
-    } catch {
-      setError('Не удалось загрузить пакеты');
+    } catch (err) {
+      console.error('[admin-ui] loadPackages failed', err);
+      const msg = err.response?.data?.message || 'Не удалось загрузить пакеты';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -493,6 +497,7 @@ export default function AdminDashboard() {
     setChatSending(true);
     setError('');
     try {
+      console.log('[admin-ui] send chat', selectedChatId);
       await adminApiClient.postAdminChatMessage({ userId: selectedChatId, content: text });
       setChatInput('');
       const { data } = await adminApiClient.adminChatThread(selectedChatId);
@@ -502,6 +507,7 @@ export default function AdminDashboard() {
       setChats(meta.chats ?? []);
       setTotalUnread(meta.totalUnread ?? 0);
     } catch (err) {
+      console.error('[admin-ui] send chat failed', err);
       setError(err.response?.data?.message || 'Не удалось отправить сообщение');
     } finally {
       setChatSending(false);

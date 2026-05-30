@@ -55,47 +55,70 @@ io.use(async (socket, next) => {
       return next(new Error('Authentication error'));
     }
 
-    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId?: string; role?: string };
+    if (decoded.role === 'admin') {
+      (socket as any).userId = 'admin';
+      (socket as any).isAdmin = true;
+      console.log('[socket] admin connected');
+      return next();
+    }
+    if (!decoded.userId) {
+      return next(new Error('Authentication error'));
+    }
     (socket as any).userId = decoded.userId;
     next();
   } catch (error) {
+    console.error('[socket] auth failed', error);
     next(new Error('Authentication error'));
   }
 });
+
+function emitToUser(userId: string, message: unknown) {
+  io.of('/support').to(userId).emit('message', message);
+  io.of('/support').to(userId).emit('receive_message', message);
+}
+
+async function handleUserMessage(
+  socket: import('socket.io').Socket,
+  data: { text: string },
+  callback: (response: { success: boolean; message?: unknown; error?: string }) => void,
+) {
+  const userId = (socket as any).userId as string;
+  try {
+    console.log('[socket] send_message from', userId, 'len:', data.text?.length);
+    const message = await prisma.message.create({
+      data: {
+        userId,
+        content: data.text,
+        isAdmin: false,
+        isRead: false,
+      },
+    });
+    io.of('/support').emit('newMessage', { userId, message });
+    emitToUser(userId, message);
+    callback({ success: true, message });
+  } catch (error) {
+    console.error('[socket] send_message failed', error);
+    callback({ success: false, error: 'Failed to send message' });
+  }
+}
 
 // Socket.IO connection handling
 io.of('/support').on('connection', (socket) => {
   const userId = (socket as any).userId;
 
-  console.log(`User connected: ${userId}`);
+  console.log(`[socket] User connected: ${userId}`);
 
-  // Join user to their own room
-  socket.join(userId);
+  if (userId !== 'admin') {
+    socket.join(userId);
+    socket.on('message', (data, callback) => handleUserMessage(socket, data, callback));
+    socket.on('send_message', (data, callback) => handleUserMessage(socket, data, callback));
+  }
 
-  // Handle incoming messages
-  socket.on('message', async (data: { text: string }, callback: (response: any) => void) => {
-    try {
-      const message = await prisma.message.create({
-        data: {
-          userId,
-          content: data.text,
-          isAdmin: false,
-          isRead: false,
-        },
-      });
-      // Emit to admin room (you can implement admin rooms separately)
-      io.of('/support').emit('newMessage', { userId, message });
-
-      callback({ success: true, message });
-    } catch (error) {
-      callback({ success: false, error: 'Failed to send message' });
-    }
-  });
-
-  // Admin-specific events
   socket.on('admin:message', async (data: { userId: string; text: string }, callback: (response: any) => void) => {
     try {
       const targetUserId = data.userId;
+      console.log('[socket] admin:message to', targetUserId);
 
       const message = await prisma.message.create({
         data: {
@@ -106,17 +129,16 @@ io.of('/support').on('connection', (socket) => {
         },
       });
 
-      // Send to specific user
-      io.of('/support').to(targetUserId).emit('message', message);
-
+      emitToUser(targetUserId, message);
       callback({ success: true, message });
     } catch (error) {
+      console.error('[socket] admin:message failed', error);
       callback({ success: false, error: 'Failed to send message' });
     }
   });
 
   socket.on('disconnect', () => {
-    console.log(`User disconnected: ${userId}`);
+    console.log(`[socket] User disconnected: ${userId}`);
   });
 });
 

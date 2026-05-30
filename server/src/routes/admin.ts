@@ -134,19 +134,24 @@ router.get('/stats', async (_req, res, next) => {
   }
 });
 
-router.get('/packages', async (_req, res, next) => {
+router.get('/packages', async (_req, res) => {
   try {
+    console.log('[admin] GET /packages');
     const packages = await prisma.package.findMany({
       orderBy: { createdAt: 'desc' },
     });
+    console.log('[admin] GET /packages ok, count:', packages.length);
     res.json({ packages });
   } catch (error) {
-    next(error);
+    console.error('[admin] GET /packages failed', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
   }
 });
 
 router.post('/packages', validate(adminCreatePackageSchema), async (req, res) => {
   try {
+    console.log('[admin] Creating package:', req.body);
     const { title, description, price, category, coverUrl } = req.body as {
       title: string;
       description: string;
@@ -179,6 +184,7 @@ router.post('/packages', validate(adminCreatePackageSchema), async (req, res) =>
       },
     });
 
+    console.log('[admin] Package created id:', pkg.id, 'coverUrl:', pkg.coverUrl ?? null);
     res.status(201).json({ message: 'Package created', package: pkg });
   } catch (error) {
     console.error('[admin] POST /packages', error);
@@ -264,8 +270,9 @@ router.delete('/packages/:id', validate(adminDeletePackageSchema), async (req, r
 });
 
 /** Список диалогов: пользователи с сообщениями + превью + непрочитанные (сообщения пользователя без isRead) */
-router.get('/chats', async (_req, res, next) => {
+router.get('/chats', async (_req, res) => {
   try {
+    console.log('[admin] GET /chats');
     const grouped = await prisma.message.groupBy({
       by: ['userId'],
       _count: { _all: true },
@@ -315,9 +322,12 @@ router.get('/chats', async (_req, res, next) => {
     );
 
     const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
+    console.log('[admin] GET /chats ok, count:', chats.length);
     res.json({ chats, totalUnread });
   } catch (error) {
-    next(error);
+    console.error('[admin] GET /chats failed', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
   }
 });
 
@@ -362,9 +372,10 @@ router.get('/chats/:userId', validate(adminChatUserIdSchema), async (req, res, n
   }
 });
 
-router.post('/message', validate(adminPostChatMessageSchema), async (req, res, next) => {
+router.post('/message', validate(adminPostChatMessageSchema), async (req, res) => {
   try {
     const { userId, content } = req.body as { userId: string; content: string };
+    console.log('[admin] POST /message', { userId, contentLen: content.length });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -381,9 +392,12 @@ router.post('/message', validate(adminPostChatMessageSchema), async (req, res, n
       },
     });
 
+    console.log('[admin] POST /message ok, id:', message.id);
     res.status(201).json({ message });
   } catch (error) {
-    next(error);
+    console.error('[admin] POST /message failed', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
   }
 });
 
