@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { chatAPI } from '@/services/api';
+import { chatApi, type ApiChatMessage } from '../api';
 
 export interface ChatMessageItem {
   id: string;
@@ -9,13 +9,12 @@ export interface ChatMessageItem {
   createdAt: string;
 }
 
-function normalizeMessage(raw: Record<string, unknown> | { id?: unknown; _id?: unknown; content?: unknown; text?: unknown; isAdmin?: unknown; isFromAdmin?: unknown; createdAt?: unknown }): ChatMessageItem {
-  const m = raw as Record<string, unknown>;
+function normalizeMessage(raw: Record<string, unknown>): ChatMessageItem {
   return {
-    id: String(m.id ?? m._id ?? `${Date.now()}`),
-    text: String(m.content ?? m.text ?? ''),
-    isFromAdmin: Boolean(m.isAdmin ?? m.isFromAdmin),
-    createdAt: String(m.createdAt ?? new Date().toISOString()),
+    id: String(raw.id ?? raw._id ?? `${Date.now()}`),
+    text: String(raw.content ?? raw.text ?? ''),
+    isFromAdmin: Boolean(raw.isAdmin ?? raw.isFromAdmin),
+    createdAt: String(raw.createdAt ?? new Date().toISOString()),
   };
 }
 
@@ -29,6 +28,7 @@ export function useChat(isOpen: boolean) {
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const isOpenRef = useRef(isOpen);
 
@@ -36,8 +36,19 @@ export function useChat(isOpen: boolean) {
     isOpenRef.current = isOpen;
   }, [isOpen]);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token')?.trim() : null;
   const isAuthenticated = Boolean(token);
+
+  const appendMessage = useCallback((raw: Record<string, unknown>) => {
+    const item = normalizeMessage(raw);
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === item.id)) return prev;
+      return [...prev, item];
+    });
+    if (item.isFromAdmin && !isOpenRef.current) {
+      setUnreadCount((c) => c + 1);
+    }
+  }, []);
 
   const loadMessages = useCallback(async () => {
     if (!token) return;
@@ -45,11 +56,10 @@ export function useChat(isOpen: boolean) {
     setError(null);
     try {
       console.log('[chat-ui] loadMessages');
-      const { data } = await chatAPI.getMessages();
-      const list = (data.messages ?? []).map((m) =>
+      const { data } = await chatApi.getMessages();
+      const list = (data.messages ?? []).map((m: ApiChatMessage) =>
         normalizeMessage(m as unknown as Record<string, unknown>),
       );
-      console.log('[chat-ui] loadMessages ok, count:', list.length);
       setMessages(list);
     } catch (err: unknown) {
       console.error('[chat-ui] loadMessages failed', err);
@@ -63,15 +73,24 @@ export function useChat(isOpen: boolean) {
     }
   }, [token]);
 
-  useEffect(() => {
-    if (!isOpen || !token) return;
+  const markAsRead = useCallback(() => {
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      socket.emit('mark_read', {});
+    }
+  }, []);
 
-    loadMessages();
+  // Socket — держим подключение пока пользователь авторизован (badge + real-time)
+  useEffect(() => {
+    if (!token) return undefined;
 
     const socket = io(`${SOCKET_BASE}/support`, {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
     });
 
     socketRef.current = socket;
@@ -79,38 +98,39 @@ export function useChat(isOpen: boolean) {
     socket.on('connect', () => {
       console.log('[chat-ui] socket connected');
       setIsConnected(true);
+      setIsReconnecting(false);
     });
+
+    socket.io.on('reconnect_attempt', () => {
+      setIsReconnecting(true);
+    });
+
     socket.on('disconnect', () => {
       console.log('[chat-ui] socket disconnected');
       setIsConnected(false);
     });
 
-    const appendMessage = (raw: Record<string, unknown>) => {
-      const item = normalizeMessage(raw);
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === item.id)) return prev;
-        return [...prev, item];
-      });
-      if (item.isFromAdmin && !isOpenRef.current) {
-        setUnreadCount((c) => c + 1);
-      }
+    const onNew = (payload: { message?: Record<string, unknown> }) => {
+      if (payload?.message) appendMessage(payload.message);
     };
 
-    socket.on('message', appendMessage);
-    socket.on('receive_message', appendMessage);
+    socket.on('new_message', onNew);
+    socket.on('message', (raw) => appendMessage(raw as Record<string, unknown>));
+    socket.on('receive_message', (raw) => appendMessage(raw as Record<string, unknown>));
 
     return () => {
       socket.disconnect();
       socketRef.current = null;
       setIsConnected(false);
+      setIsReconnecting(false);
     };
-  }, [isOpen, token, loadMessages]);
+  }, [token, appendMessage]);
 
   useEffect(() => {
-    if (isOpen) {
-      setUnreadCount(0);
-    }
-  }, [isOpen]);
+    if (!isOpen || !token) return;
+    loadMessages();
+    setUnreadCount(0);
+  }, [isOpen, token, loadMessages]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -119,47 +139,36 @@ export function useChat(isOpen: boolean) {
 
       setSending(true);
       setError(null);
-
       const socket = socketRef.current;
 
       try {
         if (socket?.connected) {
-          console.log('[chat-ui] send via socket', trimmed.length);
           await new Promise<void>((resolve, reject) => {
-            const emitSend = (response: {
+            socket.emit('send_message', { content: trimmed, text: trimmed }, (response: {
               success: boolean;
               message?: Record<string, unknown>;
               error?: string;
             }) => {
               if (response?.success && response.message) {
-                const item = normalizeMessage(response.message);
-                setMessages((prev) =>
-                  prev.some((m) => m.id === item.id) ? prev : [...prev, item],
-                );
+                appendMessage(response.message);
                 resolve();
               } else {
                 reject(new Error(response?.error || 'Ошибка отправки'));
               }
-            };
-            socket.emit('send_message', { text: trimmed }, emitSend);
+            });
           });
         } else {
-          console.log('[chat-ui] send via REST', trimmed.length);
-          const { data } = await chatAPI.sendMessage(trimmed);
-          const item = normalizeMessage(data.message ?? {});
-          setMessages((prev) =>
-            prev.some((m) => m.id === item.id) ? prev : [...prev, item],
-          );
+          const { data } = await chatApi.sendMessage(trimmed);
+          appendMessage((data.message ?? {}) as unknown as Record<string, unknown>);
         }
       } catch (err: unknown) {
         console.error('[chat-ui] send failed', err);
-        const msg = err instanceof Error ? err.message : 'Не удалось отправить сообщение';
-        setError(msg);
+        setError(err instanceof Error ? err.message : 'Не удалось отправить сообщение');
       } finally {
         setSending(false);
       }
     },
-    [token],
+    [token, appendMessage],
   );
 
   return {
@@ -169,8 +178,10 @@ export function useChat(isOpen: boolean) {
     error,
     unreadCount,
     isConnected,
+    isReconnecting,
     isAuthenticated,
     sendMessage,
     loadMessages,
+    markAsRead,
   };
 }

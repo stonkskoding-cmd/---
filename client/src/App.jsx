@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage';
 import Dashboard from './pages/Dashboard';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminChatPage from './pages/AdminChatPage';
 import PrivateAdminRoute from './components/PrivateAdminRoute';
 import ChatButton from './components/chat/ChatButton';
 
@@ -20,6 +21,14 @@ export default function App() {
         element={
           <PrivateAdminRoute>
             <AdminDashboard />
+          </PrivateAdminRoute>
+        }
+      />
+      <Route
+        path="/admin/chat"
+        element={
+          <PrivateAdminRoute>
+            <AdminChatPage />
           </PrivateAdminRoute>
         }
       />

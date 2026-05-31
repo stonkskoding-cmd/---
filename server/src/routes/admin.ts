@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { prisma } from '../lib/prisma';
+import { emitNewMessage } from '../socket';
 
 export { adminUploadMulter, adminUploadRespond } from '../utils/cloudinary';
 
@@ -390,6 +391,15 @@ router.post('/message', validate(adminPostChatMessageSchema), async (req, res) =
         isAdmin: true,
         isRead: true,
       },
+    });
+
+    emitNewMessage(userId, {
+      id: message.id,
+      userId: message.userId,
+      content: message.content,
+      isAdmin: message.isAdmin,
+      isRead: message.isRead,
+      createdAt: message.createdAt,
     });
 
     console.log('[admin] POST /message ok, id:', message.id);

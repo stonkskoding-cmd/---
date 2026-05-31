@@ -20,6 +20,7 @@ export default function ChatButton() {
     error,
     unreadCount,
     isConnected,
+    isReconnecting,
     isAuthenticated,
     sendMessage,
   } = useChat(isOpen);
@@ -71,6 +72,7 @@ export default function ChatButton() {
         sending={sending}
         error={error}
         isConnected={isConnected}
+        isReconnecting={isReconnecting}
         isAuthenticated={isAuthenticated}
         onSend={sendMessage}
       />

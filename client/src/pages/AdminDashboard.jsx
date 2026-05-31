@@ -617,6 +617,13 @@ export default function AdminDashboard() {
               </span>
             ) : null}
           </button>
+          <a
+            href="/admin/chat"
+            className={`${tabBase} ${tabInactive} no-underline`}
+            title="Полноэкранный чат"
+          >
+            Чат ↗
+          </a>
         </div>
       </header>
 

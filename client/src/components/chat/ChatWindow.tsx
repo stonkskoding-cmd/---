@@ -10,6 +10,7 @@ interface ChatWindowProps {
   sending: boolean;
   error: string | null;
   isConnected: boolean;
+  isReconnecting: boolean;
   isAuthenticated: boolean;
   onSend: (text: string) => Promise<void>;
 }
@@ -22,6 +23,7 @@ export default function ChatWindow({
   sending,
   error,
   isConnected,
+  isReconnecting,
   isAuthenticated,
   onSend,
 }: ChatWindowProps) {
@@ -73,11 +75,13 @@ export default function ChatWindow({
         <div>
           <h2 className="text-lg font-semibold text-white">Поддержка</h2>
           <p className="text-sm text-blue-100">
-            {isAuthenticated
-              ? isConnected
-                ? 'Онлайн'
-                : 'Подключение…'
-              : 'Войдите в аккаунт'}
+            {!isAuthenticated
+              ? 'Войдите в аккаунт'
+              : isReconnecting
+                ? 'Переподключение…'
+                : isConnected
+                  ? 'Онлайн'
+                  : 'Подключение…'}
           </p>
         </div>
         <button
