@@ -142,18 +142,14 @@ io.of('/support').on('connection', (socket) => {
   });
 });
 
-// Render передаёт PORT динамически (не хардкодить 10000/5000)
+// Render передаёт PORT динамически — слушаем сразу, БД подключаем параллельно
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-connectDB()
-  .then(() => {
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  void connectDB().catch((err) => {
+    console.error('Failed to connect to database:', err);
   });
+});
 
 export default io;
