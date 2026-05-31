@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useChat } from '../../hooks/useChat';
 import ChatWindow from './ChatWindow';
@@ -6,6 +6,12 @@ import ChatWindow from './ChatWindow';
 export default function ChatButton() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const openChat = () => setIsOpen(true);
+    window.addEventListener('open-support-chat', openChat);
+    return () => window.removeEventListener('open-support-chat', openChat);
+  }, []);
 
   const {
     messages,

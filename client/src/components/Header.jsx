@@ -9,6 +9,106 @@ const mobileNavLinks = [
   { to: '/?category=EGE-SOC#catalog', label: 'ЕГЭ Обществознание' },
 ];
 
+function isAdminSession(user) {
+  if (user?.role === 'admin') return true;
+  return typeof localStorage !== 'undefined' && isValidAdminToken(localStorage.getItem('adminToken'));
+}
+
+function openSupportChat() {
+  window.dispatchEvent(new CustomEvent('open-support-chat'));
+}
+
+function ProfileMenuItems({ isAdmin, onClose, onLogout }) {
+  if (isAdmin) {
+    return (
+      <>
+        <Link
+          to="/admin/dashboard"
+          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          onClick={onClose}
+        >
+          Панель управления
+        </Link>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+        >
+          Выход
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Link
+        to="/purchases"
+        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+        onClick={onClose}
+      >
+        Мои покупки
+      </Link>
+      <button
+        type="button"
+        onClick={() => {
+          onClose();
+          openSupportChat();
+        }}
+        className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+      >
+        Поддержка
+      </button>
+      <button
+        type="button"
+        onClick={onLogout}
+        className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+      >
+        Выход
+      </button>
+    </>
+  );
+}
+
+function MobileProfileMenuItems({ isAdmin, onClose, onLogout }) {
+  const linkClass = 'text-sm font-medium text-accent-400';
+  const buttonClass = 'text-left text-sm font-medium text-white/90';
+
+  if (isAdmin) {
+    return (
+      <>
+        <Link to="/admin/dashboard" onClick={onClose} className={linkClass}>
+          Панель управления
+        </Link>
+        <button type="button" onClick={onLogout} className={buttonClass}>
+          Выход
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Link to="/purchases" onClick={onClose} className={linkClass}>
+        Мои покупки
+      </Link>
+      <button
+        type="button"
+        onClick={() => {
+          onClose();
+          openSupportChat();
+        }}
+        className={buttonClass}
+      >
+        Поддержка
+      </button>
+      <button type="button" onClick={onLogout} className={buttonClass}>
+        Выход
+      </button>
+    </>
+  );
+}
+
 export default function Header({ user, onAuthSuccess, forceOpenAuth = 0 }) {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -16,10 +116,8 @@ export default function Header({ user, onAuthSuccess, forceOpenAuth = 0 }) {
   const profileMenuRef = useRef(null);
 
   const openAuth = () => setIsAuthOpen(true);
-
-  const adminTokenSession = typeof localStorage !== 'undefined' && isValidAdminToken(localStorage.getItem('adminToken'));
-  const showAccountMenu = Boolean(user) || adminTokenSession;
-  const showAdminLink = user?.role === 'admin' || adminTokenSession;
+  const isAdmin = isAdminSession(user);
+  const showAccountMenu = Boolean(user) || isAdmin;
 
   useEffect(() => {
     if (forceOpenAuth > 0) {
@@ -47,6 +145,13 @@ export default function Header({ user, onAuthSuccess, forceOpenAuth = 0 }) {
   };
 
   const closeMobileMenu = () => setIsMenuOpen(false);
+
+  const closeProfileMenu = () => setProfileMenuOpen(false);
+
+  const handleLogout = () => {
+    closeMobileMenu();
+    logout();
+  };
 
   return (
     <>
@@ -118,31 +223,11 @@ export default function Header({ user, onAuthSuccess, forceOpenAuth = 0 }) {
                 </button>
                 {profileMenuOpen ? (
                   <div className="absolute right-0 top-full z-50 mt-2 min-w-[12rem] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                    {user ? (
-                      <Link
-                        to="/dashboard"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setProfileMenuOpen(false)}
-                      >
-                        Профиль
-                      </Link>
-                    ) : null}
-                    {showAdminLink ? (
-                      <Link
-                        to="/admin/dashboard"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setProfileMenuOpen(false)}
-                      >
-                        ⚙️ Панель управления
-                      </Link>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={logout}
-                      className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      Выход
-                    </button>
+                    <ProfileMenuItems
+                      isAdmin={isAdmin}
+                      onClose={closeProfileMenu}
+                      onLogout={logout}
+                    />
                   </div>
                 ) : null}
               </>
@@ -181,55 +266,12 @@ export default function Header({ user, onAuthSuccess, forceOpenAuth = 0 }) {
                   {item.label}
                 </Link>
               ))}
-              {user ? (
-                <>
-                  <Link
-                    to="/dashboard"
-                    onClick={closeMobileMenu}
-                    className="text-sm font-medium text-accent-400"
-                  >
-                    Профиль
-                  </Link>
-                  {showAdminLink ? (
-                    <Link
-                      to="/admin/dashboard"
-                      onClick={closeMobileMenu}
-                      className="text-sm font-medium text-accent-400"
-                    >
-                      ⚙️ Панель управления
-                    </Link>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeMobileMenu();
-                      logout();
-                    }}
-                    className="text-left text-sm font-medium text-white/90"
-                  >
-                    Выход
-                  </button>
-                </>
-              ) : adminTokenSession ? (
-                <>
-                  <Link
-                    to="/admin/dashboard"
-                    onClick={closeMobileMenu}
-                    className="text-sm font-medium text-accent-400"
-                  >
-                    ⚙️ Панель управления
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeMobileMenu();
-                      logout();
-                    }}
-                    className="text-left text-sm font-medium text-white/90"
-                  >
-                    Выход
-                  </button>
-                </>
+              {showAccountMenu ? (
+                <MobileProfileMenuItems
+                  isAdmin={isAdmin}
+                  onClose={closeMobileMenu}
+                  onLogout={handleLogout}
+                />
               ) : (
                 <button
                   type="button"
