@@ -62,7 +62,8 @@ export function initSocket(httpServer: http.Server): Server {
         }
       },
       credentials: true,
-      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     },
     transports: ['websocket', 'polling'],
     allowUpgrades: true,

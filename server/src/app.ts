@@ -3,7 +3,14 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
 import apiRouter from './routes';
-import { CORS_BUILD_ID, CORS_ORIGINS, getAllowedOrigins, isOriginAllowed } from './lib/cors';
+import {
+  CORS_BUILD_ID,
+  CORS_ORIGINS,
+  CORS_METHODS,
+  CORS_ALLOWED_HEADERS,
+  getAllowedOrigins,
+  isOriginAllowed,
+} from './lib/cors';
 
 console.log('🚀 APP LOADED | CORS_BUILD_ID:', CORS_BUILD_ID);
 console.log('🧪 ALLOWED ORIGINS:', getAllowedOrigins());
@@ -12,9 +19,9 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-/** CORS: явный whitelist + любой *.onrender.com */
 const corsOptions: cors.CorsOptions = {
   origin(origin, callback) {
+    console.log('CORS allowed origin:', origin ?? 'none');
     if (!origin || isOriginAllowed(origin)) {
       callback(null, origin ?? true);
       return;
@@ -23,20 +30,21 @@ const corsOptions: cors.CorsOptions = {
     callback(null, false);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: [...CORS_METHODS],
+  allowedHeaders: [...CORS_ALLOWED_HEADERS],
   optionsSuccessStatus: 204,
   preflightContinue: false,
 };
 
 app.use((req, _res, next) => {
+  if (req.headers.origin) {
+    console.log('CORS allowed origin:', req.headers.origin);
+  }
   console.log(`[REQUEST] ${req.method} ${req.originalUrl}`);
   next();
 });
 
 app.use(cors(corsOptions));
-
-/** Дублируем whitelist для preflight (Render иногда шлёт OPTIONS до Express router) */
 app.options('*', cors(corsOptions));
 
 app.use(express.json());
@@ -61,7 +69,7 @@ app.use((err: Error & { status?: number }, req: Request, res: Response, _next: N
   if (origin && isOriginAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS.join(', '));
   }
   console.error('❌ Error:', err.message);
   if (!res.headersSent) {
@@ -70,4 +78,3 @@ app.use((err: Error & { status?: number }, req: Request, res: Response, _next: N
 });
 
 export default app;
-

@@ -1,15 +1,21 @@
 import { IncomingMessage, ServerResponse } from 'http';
 
+/** Явный whitelist — все известные адреса фронта, бэка и локальной разработки */
 export const CORS_ORIGINS = [
   'https://online-school-frontend-ryc0.onrender.com',
   'https://online-school-1-zj77.onrender.com',
+  'https://online-school-backend-mqn9.onrender.com',
   'http://localhost:3000',
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
 ];
 
-const EXPLICIT_ORIGINS = CORS_ORIGINS;
+export const CORS_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] as const;
+
+export const CORS_ALLOWED_HEADERS = ['Content-Type', 'Authorization'] as const;
 
 /** Любой Render static site / web service на *.onrender.com */
 const ONRENDER_ORIGIN = /^https:\/\/[\w-]+\.onrender\.com$/i;
@@ -45,7 +51,7 @@ export function resolveCorsOrigin(origin: string | undefined): string | boolean 
   return false;
 }
 
-/** OPTIONS на уровне http.Server — до Express */
+/** OPTIONS на уровне http.Server — до Express (если используется) */
 export function handleHttpPreflight(
   req: IncomingMessage,
   res: ServerResponse,
@@ -55,6 +61,8 @@ export function handleHttpPreflight(
   }
 
   const requestOrigin = req.headers.origin;
+  console.log('CORS allowed origin:', requestOrigin ?? 'none');
+
   const resolved = resolveCorsOrigin(requestOrigin);
   const allowOrigin =
     typeof resolved === 'string'
@@ -63,19 +71,11 @@ export function handleHttpPreflight(
 
   res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-  );
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Requested-With',
-  );
+  res.setHeader('Access-Control-Allow-Methods', CORS_METHODS.join(', '));
+  res.setHeader('Access-Control-Allow-Headers', CORS_ALLOWED_HEADERS.join(', '));
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  console.log(
-    `✅ [HTTP OPTIONS intercepted] ${req.url} | Allow-Origin: ${allowOrigin}`,
-  );
+  console.log(`✅ [HTTP OPTIONS] ${req.url} | Allow-Origin: ${allowOrigin}`);
   res.writeHead(200);
   res.end();
   return true;
