@@ -14,11 +14,12 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
     try {
-      const { data } = await authApi.login({ username, password });
+      const { data } = await authApi.adminLogin({ username, password });
       if (data?.token) {
-        localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('token', data.token);
+        console.log('[admin-login] token saved');
         navigate('/admin/dashboard', { replace: true });
       } else {
         setError('Ответ сервера без токена');

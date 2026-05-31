@@ -12,13 +12,34 @@ function parseJwtPayload(token) {
 
 export function isValidAdminToken(token) {
   if (!token || typeof token !== 'string') return false;
-  const payload = parseJwtPayload(token);
-  return payload?.role === 'admin';
+  const payload = parseJwtPayload(token.trim());
+  if (payload?.role !== 'admin') return false;
+  if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) return false;
+  return true;
 }
 
-/** Доступ в /admin: отдельный adminToken или пользовательский JWT с role admin */
+/** Токен для Authorization на /api/admin/* */
+export function getAdminBearerToken() {
+  const adminToken = localStorage.getItem('adminToken')?.trim();
+  const userToken = localStorage.getItem('token')?.trim();
+
+  if (adminToken && isValidAdminToken(adminToken)) return adminToken;
+  if (userToken && isValidAdminToken(userToken)) return userToken;
+  // Fallback: отправляем adminToken — сервер проверит JWT
+  if (adminToken) return adminToken;
+  if (userToken) return userToken;
+  return null;
+}
+
+export function clearAdminSession() {
+  localStorage.removeItem('adminToken');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+}
+
+/** Доступ в /admin: валидный JWT с role admin */
 export function canAccessAdminRoute() {
-  const adminToken = localStorage.getItem('adminToken');
-  const userToken = localStorage.getItem('token');
+  const adminToken = localStorage.getItem('adminToken')?.trim();
+  const userToken = localStorage.getItem('token')?.trim();
   return isValidAdminToken(adminToken) || isValidAdminToken(userToken);
 }

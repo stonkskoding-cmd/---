@@ -42,12 +42,11 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
 
       if (role === 'admin') {
         localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('token', data.token);
         if (data.user) {
-          localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
           onSuccess(data.user);
         } else {
-          localStorage.removeItem('token');
           localStorage.removeItem('user');
           onSuccess(null);
         }

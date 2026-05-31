@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isValidAdminToken } from './utils/adminAuth';
+import { getAdminBearerToken, clearAdminSession } from './utils/adminAuth';
 
 const apiBaseURL =
   import.meta.env.VITE_API_URL || 'https://online-school-backend-mqn9.onrender.com/api';
@@ -10,9 +10,10 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token')?.trim();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('[api] request with user token:', config.method?.toUpperCase(), config.url);
   }
   return config;
 });
@@ -30,19 +31,29 @@ const adminApi = axios.create({
 });
 
 adminApi.interceptors.request.use((config) => {
-  const adminToken = localStorage.getItem('adminToken');
-  const userToken = localStorage.getItem('token');
-  const bearer =
-    adminToken && isValidAdminToken(adminToken)
-      ? adminToken
-      : userToken && isValidAdminToken(userToken)
-        ? userToken
-        : null;
+  const bearer = getAdminBearerToken();
   if (bearer) {
     config.headers.Authorization = `Bearer ${bearer}`;
+    console.log('[admin-api] Sending request with token:', config.method?.toUpperCase(), config.url);
+  } else {
+    console.warn('[admin-api] No admin token — request may fail:', config.method?.toUpperCase(), config.url);
   }
   return config;
 });
+
+adminApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.error('[admin-api] Auth failed:', error.response?.status, error.response?.data?.message);
+      clearAdminSession();
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/admin-login')) {
+        window.location.href = '/admin-login';
+      }
+    }
+    return Promise.reject(error);
+  },
+);
 
 export const adminApiClient = {
   stats: () => adminApi.get('/admin/stats'),
