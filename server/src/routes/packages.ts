@@ -58,6 +58,23 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+router.get('/id/:id', auth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    console.log('[packages] GET /id/:id', id);
+    const pkg = await prisma.package.findUnique({ where: { id } });
+    if (!pkg) {
+      res.status(404).json({ message: 'Package not found' });
+      return;
+    }
+    res.json({ package: pkg });
+  } catch (error) {
+    console.error('[packages] GET /id/:id failed', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
+  }
+});
+
 router.get('/:slug', async (req, res, next) => {
   try {
     const { slug } = req.params;
@@ -74,18 +91,11 @@ router.get('/:slug', async (req, res, next) => {
   }
 });
 
-router.get('/:slug/content', auth, async (req: AuthRequest, res, next) => {
+router.get('/:slug/content', auth, async (req: AuthRequest, res) => {
   try {
     const { slug } = req.params;
     const userId = req.user!.id;
-
-    const purchase = await prisma.purchase.findFirst({
-      where: {
-        userId,
-        status: 'paid',
-        package: { slug },
-      },
-    });
+    console.log('[packages] GET /:slug/content', { slug, userId });
 
     const pkg = await prisma.package.findUnique({ where: { slug } });
     if (!pkg) {
@@ -93,16 +103,26 @@ router.get('/:slug/content', auth, async (req: AuthRequest, res, next) => {
       return;
     }
 
-    const hasAccess = Boolean(purchase);
+    const purchase = await prisma.purchase.findFirst({
+      where: {
+        userId,
+        packageId: pkg.id,
+        status: { in: ['paid', 'pending'] },
+      },
+    });
 
-    if (!hasAccess) {
+    if (!purchase) {
+      console.warn('[packages] content denied — no purchase', { slug, userId });
       res.status(403).json({ message: 'No access to this package. Please purchase it first.' });
       return;
     }
 
+    console.log('[packages] content ok', { slug, materials: Array.isArray(pkg.materials) ? (pkg.materials as unknown[]).length : 0 });
     res.json({ package: pkg });
   } catch (error) {
-    next(error);
+    console.error('[packages] GET /:slug/content failed', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ message });
   }
 });
 

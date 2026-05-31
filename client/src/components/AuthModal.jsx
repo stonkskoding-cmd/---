@@ -26,7 +26,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
         onSuccess(response.data.user);
         onClose();
-        navigate('/dashboard', { replace: true });
+        navigate('/', { replace: true });
         return;
       }
 
@@ -60,7 +60,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }) {
       localStorage.setItem('user', JSON.stringify(data.user));
       onSuccess(data.user);
       onClose();
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     } catch (requestError) {
       setError(requestError?.response?.data?.message || 'Ошибка авторизации');
     } finally {

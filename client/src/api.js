@@ -79,6 +79,9 @@ export const adminApiClient = {
 
 export const packagesApi = {
   list: (category) => api.get('/packages', { params: category ? { category } : {} }),
+  getBySlug: (slug) => api.get(`/packages/${slug}`),
+  getById: (id) => api.get(`/packages/id/${id}`),
+  getContent: (slug) => api.get(`/packages/${slug}/content`),
 };
 
 export const purchasesApi = {
